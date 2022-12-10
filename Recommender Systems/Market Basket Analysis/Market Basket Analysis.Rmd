@@ -1,0 +1,111 @@
+---
+title: "DATA_624_HW2"
+author: 'Group 4: Melvin Matanos, Claire Meyer, Chinedu Onyeka, Euclid Zhang, Jie
+  Zou'
+date: "6/20/2022"
+output:
+  word_document:
+    reference_docx: Style.docx
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+\newpage
+
+```{r message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
+library(knitr)
+library(DMwR2)
+library(partykit)
+set.seed(624)
+```
+
+
+# Market Basket Analysis
+
+Imagine 10000 receipts sitting on your table. Each receipt represents a transaction with items that were purchased. The receipt is a representation of stuff that went into a customer's basket – and therefore 'Market Basket Analysis'.
+
+That is exactly what the Groceries Data Set contains: a collection of receipts with each line representing 1 receipt and the items purchased. Each line is called a **transaction** and each column in a row represents an **item**.
+
+You assignment is to use R to mine the data for association rules. You should report support, confidence and lift and your top 10 rules by lift. 
+
+
+In this assignment, we will demonstrate how to generate the association rules from the given transactions by using the **arules** package in **R** and also the **mlxtend** package in **Python**
+
+
+## Association Rules in **R**
+
+```{r message=FALSE, warning=FALSE}
+library(arules)
+library(arulesViz)
+```
+
+
+First, let's load the transactions data.
+
+```{r}
+grocery_data <- read.transactions("GroceryDataSet.csv",format="basket", sep=",")
+```
+
+An association rule is a specific pattern derived from existing observations that an antecedent action leads to a consequent action. In this case, we would like to find rules that people who purchase a given set of items also purchase another set of items.
+
+We will use three measures to evaluate our association rules:  
+
+* Support: the percentage of the transactions that contain all items in an association rule.
+* Confidence: given the transactions that a specific set of items is purchased, the probability that another set of items is also included in the transactions. 
+* Lift: a measure of the strength of the causation effect. A lift = 1 implies the presence of the two sets of items are independent. A lift < 1 implies that the presence of one set has negative effect on the presence of another set. A lift > 1 shows a good positive causation effect.
+
+
+We have a total of 9835 transactions.
+
+```{r}
+length(grocery_data)
+```
+
+We would like to filter out some rules that are not significantly important. Hence, we would capture only the rules occur in 10 or more transactions. That is, support must be equal or higher than 0.001.
+
+```{r}
+10/9835
+```
+
+A grocery store has limited resources to improve their business. We may find hundreds of rules but the store can only manage some items. Hence, would focus on the rules with high confidence (equal or greater than 0.8). We would also add a restriction to generate rules with three or less items.
+
+Setting all the parameter, we can generate the association rules using the `apriori` function.
+
+```{r message=FALSE, warning=FALSE}
+rules <- apriori(grocery_data, parameter = list(supp = 10/9835, conf = 0.8, minlen = 2, maxlen=3))
+summary(rules)
+```
+
+We can show top 10 rules with the highest lift but we find it more interesting to view the top 20 rules.
+
+```{r message=FALSE, warning=FALSE}
+kable(DATAFRAME(head(rules, n = 20, by = "lift", decreasing=T)), row.names = FALSE)
+```
+
+* The first rule shows the purchases of alcohol drinkers. People who purchase **liquor and wines** are very likely to purchase **beers** also. The lift is significantly higher than any other rule. It has a confidence of 0.9 and the highest support among the top 20 rules. We can do a sales promotion on liquor and wines and increase the price of beers to increase our revenue. However, we should not push the sales of beers to increase the sales of liquor and wines since the rule is not one of the top rules.
+* Top 2-11 have the same consequent item - **other vegetables**. Looking at the antecedent items of the rules, **other vegetables** may be an ingredient of a recipe with the other items. Also, the term **other vegetables** is vague as it can be a lot of different items. As **other vegetables** is needed by many customers, it would worth time to find out which specific vegetables are mostly needed and make sure we have enough in the inventory.
+* Top 12-20 all point to the same item - **whole milk**. One may think that **whole milk** is an essential item that appears on most transactions just by chance. But the lift score of higher than 3 implies that there is a causation effect of the purchases. 
+Unlike **other vegetables**, **whole milk** is a well defined single item that we can manage. The items on the left of the rules would be the good candidates on the our weekly advertisements.
+* There is one interesting rule that shows people who purchase **bottled beer** and **soups** also purchase **whole milk**. We may utilize this chain effect to sell **liquor and wines**, **beers**, **soups**, and **whole milk** in a bundle.
+
+
+We can visualize the top 20 rules use the `arulesViz` package. 
+
+We can confirm from the following plot that **other vegetables** and **whole milk** are the centers of the grocery items and the **alcohols** stick together. 
+
+```{r fig.height=4, fig.width=6.5, message=FALSE, warning=FALSE}
+plot(rules,method="graph", control=list(max=20,
+                                        edges = ggraph::geom_edge_link(
+                                            end_cap = ggraph::circle(4, "mm"),
+                                            start_cap = ggraph::circle(4, "mm"),
+                                            color = "blue",
+                                            arrow = arrow(length = unit(2, "mm"), angle = 20, type = "closed"),
+                                            alpha = 0.4
+                                          )
+                                        ))
+
+```
+
+
+
